@@ -1,0 +1,18 @@
+# Download the docker-compose file from the repository
+curl https://raw.githubusercontent.com/freqtrade/freqtrade/stable/docker-compose.yml -o docker-compose.yml
+
+# Pull the freqtrade imagem
+docker compose pull
+
+# Create user directory structure
+docker compose run --rm freqtrade create-userdir --userdir user_data
+
+# Create configuration - Requires answering interactive questions
+docker compose run --rm freqtrade new-config --config user_data/config.json
+
+#Downloading Market data
+docker compose run --rm freqtrade download-data --pairs BTC/USDT --exchange okx --days 60 -t 1m
+#--pairs 
+#-t can be 5m 1h and soon.
+#Back Testing Command
+docker compose run --rm freqtrade backtesting --config user_data/config.json --strategy Strategy001 --timerange 20240221-20240321 -i 5m
