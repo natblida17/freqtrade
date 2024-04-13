@@ -16,3 +16,5 @@ docker compose run --rm freqtrade download-data --pairs BTC/USDT --exchange okx 
 #-t can be 5m 1h and soon.
 #Back Testing Command
 docker compose run --rm freqtrade backtesting --config user_data/config.json --strategy Strategy001 --timerange 20240221-20240321 -i 5m
+
+7054026072:AAH2sIppsIFLKvQsvl5a6rmgqNbhvIEGaCE
