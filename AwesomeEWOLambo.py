@@ -122,6 +122,7 @@ class AwesomeEWOLambo(IStrategy):
         dataframe['ha_close'] = heikin_ashi_df['close']
         dataframe['ha_open'] = heikin_ashi_df['open']
         #EMA
+        dataframe['ema_high'] = ta.EMA(dataframe, timeperiod=5, price='high')
         dataframe['hma_50'] = qtpylib.hull_moving_average(dataframe['close'], window=50)
         dataframe['ema20'] = ta.EMA(dataframe, timeperiod=20)
         dataframe['ema50'] = ta.EMA(dataframe, timeperiod=50)
@@ -150,6 +151,10 @@ class AwesomeEWOLambo(IStrategy):
         dataframe['rsi_4'] = ta.RSI(dataframe, timeperiod=4)
         dataframe['rsi_14'] = ta.RSI(dataframe, timeperiod=14)
 
+         # Stoch
+        stoch_fast = ta.STOCHF(dataframe, 5, 3, 0, 3, 0)
+        dataframe['fastd'] = stoch_fast['fastd']
+        dataframe['fastk'] = stoch_fast['fastk']
      
         bollinger2 = qtpylib.bollinger_bands(qtpylib.typical_price(dataframe), window=20, stds=2)
 
