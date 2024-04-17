@@ -200,6 +200,7 @@ class AwesomeEWOLambo(IStrategy):
 
         dataframe['buysignal'] = (dataframe[f'ma_buy_{self.base_nb_candles_buy.value}'] * self.low_offset.value)
         dataframe['sellsignal'] = (dataframe[f'ma_sell_{self.base_nb_candles_sell.value}'] * self.high_offset.value)
+        dataframe['difference_signal'] = (dataframe['ha_close'] - dataframe[f'ma_sell_{self.base_nb_candles_sell.value}']).sub(dataframe['ha_close'].sub(dataframe[f'ma_buy_{self.base_nb_candles_buy.value}']).mean()).div(dataframe['ha_close'].sub(dataframe[f'ma_buy_{self.base_nb_candles_buy.value}']).std())
         # Elliot
         dataframe['EWO'] = EWO(dataframe, self.fast_ewo, self.slow_ewo)
 
@@ -281,13 +282,19 @@ class AwesomeEWOLambo(IStrategy):
 
         # dataframe.loc[sellwhenstartred, 'exit_tag'] += 'sell_downtrend_sma_td_ao'
         # conditions.append(sellwhenstartred)
+        sellsignal =(
+            (dataframe['ha_close'] > dataframe['ha_open']) &
+            (dataframe['difference_signal'] >= 0.9) 
+        )
+        dataframe.loc[sellsignal, 'exit_tag'] += 'sell_signal'
+        conditions.append(sellsignal)
 
-        sellhm50rsisignal = ((dataframe['close']>dataframe['hma_50'])&
-                (dataframe['close'] > (dataframe[f'ma_sell_{self.base_nb_candles_sell.value}'] * self.high_offset_2.value)) &
-                (dataframe['volume'] > 0)&
-                (dataframe['rsi_fast']>dataframe['rsi_slow']))
-        dataframe.loc[sellhm50rsisignal, 'exit_tag'] += 'sell_rsi'
-        conditions.append(sellhm50rsisignal)
+        # sellhm50rsisignal = ((dataframe['close']>dataframe['hma_50'])&
+        #        (dataframe['close'] > (dataframe[f'ma_sell_{self.base_nb_candles_sell.value}'] * self.high_offset_2.value)) &
+        #        (dataframe['volume'] > 0)&
+        #        (dataframe['rsi_fast']>dataframe['rsi_slow']))
+        # dataframe.loc[sellhm50rsisignal, 'exit_tag'] += 'sell_rsi'
+        # conditions.append(sellhm50rsisignal)
 
 
         if conditions:
