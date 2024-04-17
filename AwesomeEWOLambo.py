@@ -93,6 +93,42 @@ class AwesomeEWOLambo(IStrategy):
     safety_order_step_scale = 1.2
     safety_order_volume_scale = 1.4
     position_adjustment_enable = True
+    @property
+    def protections(self):
+        return [
+            {
+                "method": "CooldownPeriod",
+                "stop_duration_candles": 5
+            },
+            {
+                "method": "MaxDrawdown",
+                "lookback_period_candles": 48,
+                "trade_limit": 20,
+                "stop_duration_candles": 4,
+                "max_allowed_drawdown": 0.2
+            },
+            {
+                "method": "StoplossGuard",
+                "lookback_period_candles": 24,
+                "trade_limit": 4,
+                "stop_duration_candles": 2,
+                "only_per_pair": False
+            },
+            {
+                "method": "LowProfitPairs",
+                "lookback_period_candles": 6,
+                "trade_limit": 2,
+                "stop_duration_candles": 60,
+                "required_profit": 0.02
+            },
+            {
+                "method": "LowProfitPairs",
+                "lookback_period_candles": 24,
+                "trade_limit": 4,
+                "stop_duration_candles": 2,
+                "required_profit": 0.01
+            }
+        ]
     def pump_dump_protection(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         df36h = dataframe.copy().shift( 432 ) # TODO FIXME: This assumes 5m timeframe
         df24h = dataframe.copy().shift( 288 ) # TODO FIXME: This assumes 5m timeframe
