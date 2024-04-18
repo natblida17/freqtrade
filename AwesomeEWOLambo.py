@@ -248,6 +248,14 @@ class AwesomeEWOLambo(IStrategy):
         dataframe.loc[lambo2, 'enter_tag'] += 'buy_lambo2_'
         conditions.append(lambo2)
 
+        buysignal =(
+            qtpylib.crossed_below(dataframe['ha_open'], dataframe['ha_close']) &
+            (dataframe['difference_signal'] <= -2.5) &
+            (dataframe['volume'] > 0) 
+        )
+        dataframe.loc[buysignal, 'enter_tag'] += 'buy_signal'
+        conditions.append(buysignal)
+
         if conditions:
             dataframe.loc[reduce(lambda x, y: x | y, conditions), 'enter_long'] = 1
         dont_buy_conditions =[]
@@ -258,43 +266,46 @@ class AwesomeEWOLambo(IStrategy):
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         conditions = []
        
-        # sellwhengreenriseema100 = (
-        #     qtpylib.crossed_above(dataframe['ema20'], dataframe['ema100']) &
-        #         (dataframe['ha_close'] > dataframe['ema20']) &
-        #         (dataframe['ha_open'] < dataframe['ha_close'])
-        # )
-        # dataframe.loc[sellwhengreenriseema100, 'exit_tag'] += 'sell_downtrend_ema20_ema100'
-        # conditions.append(sellwhengreenriseema100)
+        sellwhengreenriseema100 = (
+            qtpylib.crossed_above(dataframe['ema20'], dataframe['ema100']) &
+                (dataframe['ha_close'] > dataframe['ema20']) &
+                (dataframe['ha_open'] < dataframe['ha_close'])
+        )
+        dataframe.loc[sellwhengreenriseema100, 'exit_tag'] += 'sell_downtrend_ema20_ema100'
+        conditions.append(sellwhengreenriseema100)
 
-        # sellwhengreenrise = (
-        #     qtpylib.crossed_above(dataframe['ema20'], dataframe['ema50']) &
-        #         (dataframe['ha_close'] > dataframe['ema20']) &
-        #         (dataframe['ha_open'] < dataframe['ha_close'])
-        # )
-        # dataframe.loc[sellwhengreenrise, 'exit_tag'] += 'sell_downtrend_ema20_ema50'
-        # conditions.append(sellwhengreenrise)
+        sellwhengreenrise = (
+            qtpylib.crossed_above(dataframe['ema20'], dataframe['ema50']) &
+                (dataframe['ha_close'] < dataframe['ema20']) &
+                (dataframe['ha_open'] > dataframe['ha_close'])
+        )
+        dataframe.loc[sellwhengreenrise, 'exit_tag'] += 'sell_downtrend_ema20_ema50'
+        conditions.append(sellwhengreenrise)
         
         # sellwhenstartred = (
         #     (dataframe['ha_close'] > dataframe['sma']) &
         #     (dataframe['tdi_rsi'] > dataframe['tdi_signal']) &
         #     (dataframe['ao'] > 0)
         # )
-
+        
         # dataframe.loc[sellwhenstartred, 'exit_tag'] += 'sell_downtrend_sma_td_ao'
         # conditions.append(sellwhenstartred)
+
+
         sellsignal =(
             (dataframe['ha_close'] > dataframe['ha_open']) &
-            (dataframe['difference_signal'] >= 0.9) 
+            (dataframe['difference_signal'] >= 1.9) 
         )
         dataframe.loc[sellsignal, 'exit_tag'] += 'sell_signal'
         conditions.append(sellsignal)
 
-        # sellhm50rsisignal = ((dataframe['close']>dataframe['hma_50'])&
-        #        (dataframe['close'] > (dataframe[f'ma_sell_{self.base_nb_candles_sell.value}'] * self.high_offset_2.value)) &
-        #        (dataframe['volume'] > 0)&
-        #        (dataframe['rsi_fast']>dataframe['rsi_slow']))
-        # dataframe.loc[sellhm50rsisignal, 'exit_tag'] += 'sell_rsi'
-        # conditions.append(sellhm50rsisignal)
+        sellhm50rsisignal = ((dataframe['close']>dataframe['hma_50'])&
+                (dataframe['close'] > (dataframe[f'ma_sell_{self.base_nb_candles_sell.value}'] * self.high_offset_2.value)) &
+                (dataframe['volume'] > 0)&
+                (dataframe['rsi_fast']>dataframe['rsi_slow']) )
+        dataframe.loc[sellhm50rsisignal, 'exit_tag'] += 'sell_rsi'
+        conditions.append(sellhm50rsisignal)
+
 
 
         if conditions:
