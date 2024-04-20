@@ -46,7 +46,7 @@ class AwesomeEWOLambov3(IStrategy):
         "ewo_low": -2.289,
         "rsi_buy": 58,
         "lookback_candles": 3,
-        "profit_threshold": 1.008,
+        "profit_threshold": 1.03,
         "lambo2_ema_14_factor": 0.981,
         "lambo2_rsi_14_limit": 39,
         "lambo2_rsi_4_limit": 44,
@@ -84,7 +84,7 @@ class AwesomeEWOLambov3(IStrategy):
     lookback_candles = IntParameter(
         1, 24, default=buy_params['lookback_candles'], space='buy', optimize=True)
     # Profit Threshold
-    profit_threshold = DecimalParameter(1.0, 1.03,
+    profit_threshold = DecimalParameter(1.00, 1.02,
                                         default=buy_params['profit_threshold'], space='buy', optimize=True)
     # trailing stoploss
    
@@ -390,7 +390,7 @@ class AwesomeEWOLambov3(IStrategy):
         dont_buy_conditions.append((dataframe['pnd_volume_warn'] == -1))
         dont_buy_conditions.append(
             (
-                # don't buy if there isn't 1% profit to be made
+                # don't buy if there isn't 3% profit to be made
                 (dataframe['close_1h'].rolling(self.lookback_candles.value).max()
                  < (dataframe['close'] * self.profit_threshold.value))
             )
