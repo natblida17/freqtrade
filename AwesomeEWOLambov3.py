@@ -1,5 +1,5 @@
 # --- Do not remove these libs ---
-from freqtrade.strategy import IStrategy, DecimalParameter, stoploss_from_open, IntParameter
+from freqtrade.strategy import IStrategy, DecimalParameter, stoploss_from_open, IntParameter, merge_informative_pair
 from typing import Dict, List
 from functools import reduce
 from pandas import DataFrame
@@ -32,6 +32,7 @@ class AwesomeEWOLambov3(IStrategy):
     stoploss = -0.7
     # Optimal timeframe for the strategy
     timeframe = '5m'
+    info_timeframe = '1h'
     # Protection
     fast_ewo = 50
     slow_ewo = 200
@@ -42,11 +43,14 @@ class AwesomeEWOLambov3(IStrategy):
         "ewo_high_2": -3.585,
         "low_offset": 0.987,
         "low_offset_2": 0.942,
-        "ewo_low": -4.289,
+        "ewo_low": -2.289,
         "rsi_buy": 58,
+        "lookback_candles": 3,
+        "profit_threshold": 1.008,
         "lambo2_ema_14_factor": 0.981,
         "lambo2_rsi_14_limit": 39,
         "lambo2_rsi_4_limit": 44,
+        "distance_offset": -0.2
     }
 
     # Sell hyperspace params:
@@ -69,11 +73,19 @@ class AwesomeEWOLambov3(IStrategy):
     rsi_buy = IntParameter(30, 70, default=buy_params['rsi_buy'], space='buy', optimize=False)
     ewo_high_2 = DecimalParameter(
         -6.0, 12.0, default=buy_params['ewo_high_2'], space='buy', optimize=False)
-     # lambo2
+    # lambo2
     lambo2_ema_14_factor = DecimalParameter(0.8, 1.2, decimals=3,  default=buy_params['lambo2_ema_14_factor'], space='buy', optimize=True)
     lambo2_rsi_4_limit = IntParameter(5, 60, default=buy_params['lambo2_rsi_4_limit'], space='buy', optimize=True)
     lambo2_rsi_14_limit = IntParameter(5, 60, default=buy_params['lambo2_rsi_14_limit'], space='buy', optimize=True)
-
+    #distance
+    distance_offset = IntParameter(-0.1, -1, default=buy_params['distance_offset'], space='buy', optimize=True)
+    difference_offset = IntParameter(-1.8, -5, default=-2.9, space='buy', optimize=True)
+    # Lookback candles
+    lookback_candles = IntParameter(
+        1, 24, default=buy_params['lookback_candles'], space='buy', optimize=True)
+    # Profit Threshold
+    profit_threshold = DecimalParameter(1.0, 1.03,
+                                        default=buy_params['profit_threshold'], space='buy', optimize=True)
     # trailing stoploss
    
     trailing_stop = True
@@ -94,7 +106,7 @@ class AwesomeEWOLambov3(IStrategy):
     safety_order_step_scale = 1.2
     safety_order_volume_scale = 1.4
     position_adjustment_enable = True
-    threshold = 0.3
+    threshold = -1
 
     slippage_protection = {
         'retries': 6,
@@ -152,6 +164,7 @@ class AwesomeEWOLambov3(IStrategy):
 
         dataframe['pnd_volume_warn'] = np.where((dataframe['volume_mean_short'] / dataframe['volume_mean_long'] > 5.0), -1, 0)
         return dataframe
+    
     # trailing stoploss hyperopt parameters
     # hard stoploss profit
     pHSL = DecimalParameter(-0.600, -0.080, default=stoploss, decimals=3,
@@ -191,7 +204,7 @@ class AwesomeEWOLambov3(IStrategy):
         #     return -0.005
 
         return stoploss_from_open(sl_profit, current_profit)
-    
+   
     def custom_exit(self, pair: str, trade: 'Trade', current_time: 'datetime', current_rate: float, current_profit: float, **kwargs):
         # Sell any positions at a loss if they are held for more than 7 days.
         if current_profit < -0.04 and (current_time - trade.open_date_utc).days >= 7:
@@ -229,10 +242,23 @@ class AwesomeEWOLambov3(IStrategy):
         return True   
     
     def informative_pairs(self):
-        # Define the informative pairs
-        return []
+        pairs = self.dp.current_whitelist()
+        informative_pairs = [(pair, '1h') for pair in pairs]
+        return informative_pairs
+
+    def informative_1h_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        assert self.dp, "DataProvider is required for multiple timeframes."
+        # Get the informative pair
+        informative_1h = self.dp.get_pair_dataframe(pair=metadata['pair'], timeframe=self.info_timeframe)
+
+        return informative_1h
+    
     
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
+        # Get the informative pair
+        informative_1h = self.informative_1h_indicators(dataframe, metadata)
+        # Merge the informative pair dataframe
+        dataframe = merge_informative_pair(dataframe, informative_1h, self.timeframe, self.info_timeframe, ffill=True)
         # Convert to Heikin Ashi candles
         heikin_ashi_df = heikinashi(dataframe)
         dataframe['ha_close'] = heikin_ashi_df['close']
@@ -268,6 +294,7 @@ class AwesomeEWOLambov3(IStrategy):
         dataframe['cci'] = ta.CCI(dataframe)
 
         # RSI
+        dataframe['rsi'] = ta.RSI(dataframe)
         dataframe['rsi_fast'] = ta.RSI(dataframe, timeperiod=4)
         dataframe['rsi_slow'] = ta.RSI(dataframe, timeperiod=20)
         dataframe['rsi_4'] = ta.RSI(dataframe, timeperiod=4)
@@ -291,7 +318,7 @@ class AwesomeEWOLambov3(IStrategy):
 
         dataframe['difference_signal'] = (dataframe['ha_close'] - dataframe[f'ma_sell_{self.base_nb_candles_sell.value}']).sub(dataframe['ha_close'].sub(dataframe[f'ma_buy_{self.base_nb_candles_buy.value}']).mean()).div(dataframe['ha_close'].sub(dataframe[f'ma_buy_{self.base_nb_candles_buy.value}']).std())
         dataframe['close_buy_signal'] = (dataframe['ha_close'] - dataframe['buysignal']).sub(dataframe['ha_close'].sub(dataframe['buysignal']).mean()).div(dataframe['ha_close'].sub(dataframe['buysignal']).std())
-        dataframe['distance'] = (dataframe['ha_close'] - dataframe['buysignal']) / dataframe['ha_close'].std()
+        dataframe['distance'] = (dataframe['ha_close'] - dataframe['ha_open']) / dataframe['ha_close'].std()
         dataframe['buy_signal_distance'] = dataframe['distance'].abs() < self.threshold
         # Elliot
         dataframe['EWO'] = EWO(dataframe, self.fast_ewo, self.slow_ewo)
@@ -351,65 +378,37 @@ class AwesomeEWOLambov3(IStrategy):
         dataframe.loc[buyewolow, 'enter_tag'] += 'buy_ewo_low_rsi_'
         conditions.append(buyewolow)
 
-        # buysignal =(
-        #     qtpylib.crossed_below(dataframe['ha_open'], dataframe['ha_close']) &
-        #     (dataframe['difference_signal'] <= -2.5) &
-        #     (dataframe['volume'] > 0) 
-        #  )
-        # dataframe.loc[buysignal, 'enter_tag'] += 'buy_signal'
-        # conditions.append(buysignal)
+        buy_distance = (
+            (dataframe['distance'] <= self.distance_offset.value) & 
+            (dataframe['difference_signal'] < self.difference_offset.value))
+        dataframe.loc[buy_distance, 'enter_tag'] += 'buy_signal'
+        conditions.append(buy_distance)
 
         if conditions:
             dataframe.loc[reduce(lambda x, y: x | y, conditions), 'enter_long'] = 1
         dont_buy_conditions =[]
         dont_buy_conditions.append((dataframe['pnd_volume_warn'] == -1))
+        dont_buy_conditions.append(
+            (
+                # don't buy if there isn't 1% profit to be made
+                (dataframe['close_1h'].rolling(self.lookback_candles.value).max()
+                 < (dataframe['close'] * self.profit_threshold.value))
+            )
+        )
+
         if dont_buy_conditions:
-            dataframe.loc[reduce(lambda x, y: x | y, dont_buy_conditions), 'enter_short'] = 0
+            dataframe.loc[reduce(lambda x, y: x | y, dont_buy_conditions), 'enter_long'] = 0
         return dataframe
     
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         conditions = []
        
-        # sellwhengreenriseema100 = (
-        #     qtpylib.crossed_above(dataframe['ema20'], dataframe['ema100']) &
-        #         (dataframe['ha_close'] > dataframe['ema20']) &
-        #         (dataframe['ha_open'] < dataframe['ha_close'])
-        # )
-        # dataframe.loc[sellwhengreenriseema100, 'exit_tag'] += 'sell_downtrend_ema20_ema100'
-        # conditions.append(sellwhengreenriseema100)
-
-        # sellwhengreenrise = (
-        #     qtpylib.crossed_above(dataframe['ema20'], dataframe['ema50']) &
-        #         (dataframe['ha_close'] < dataframe['ema20']) &
-        #         (dataframe['ha_open'] > dataframe['ha_close'])
-        # )
-        # dataframe.loc[sellwhengreenrise, 'exit_tag'] += 'sell_downtrend_ema20_ema50'
-        # conditions.append(sellwhengreenrise)
-        
-        # sellwhenstartred = (
-        #     (dataframe['ha_close'] > dataframe['sma']) &
-        #     (dataframe['tdi_rsi'] > dataframe['tdi_signal']) &
-        #     (dataframe['ao'] > 0)
-        # )
-        
-        # dataframe.loc[sellwhenstartred, 'exit_tag'] += 'sell_downtrend_sma_td_ao'
-        # conditions.append(sellwhenstartred)
-
-
         sellsignal =(
             (dataframe['ha_close'] > dataframe['ha_open']) &
             (dataframe['difference_signal'] >= 1.9) 
         )
         dataframe.loc[sellsignal, 'exit_tag'] += 'sell_signal'
         conditions.append(sellsignal)
-
-        # sellhm50rsisignal = ((dataframe['close']>dataframe['hma_50'])&
-        #         (dataframe['close'] > (dataframe[f'ma_sell_{self.base_nb_candles_sell.value}'] * self.high_offset_2.value)) &
-        #         (dataframe['volume'] > 0)&
-        #         (dataframe['rsi_fast']>dataframe['rsi_slow']) )
-        # dataframe.loc[sellhm50rsisignal, 'exit_tag'] += 'sell_rsi'
-        # conditions.append(sellhm50rsisignal)
-
 
         if conditions:
             dataframe.loc[reduce(lambda x, y: x | y, conditions), 'exit_long'] = 1
